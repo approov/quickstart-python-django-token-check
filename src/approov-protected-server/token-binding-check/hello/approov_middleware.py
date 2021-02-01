@@ -13,7 +13,7 @@ class ApproovMiddleware:
         load_dotenv(find_dotenv(), override=True)
 
         # Token secret value obtained with the Approov CLI tool:
-        #  - approov secret <admin.tok> -get
+        #  - approov secret -get
         approov_base64_secret = getenv('APPROOV_BASE64_SECRET')
 
         if approov_base64_secret == None:
