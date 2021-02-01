@@ -17,7 +17,7 @@ from dotenv import load_dotenv, find_dotenv
 load_dotenv(find_dotenv(), override=True)
 
 # Token secret value obtained with the Approov CLI tool:
-#  - approov secret <admin.tok> -get
+#  - approov secret -get
 SECRET_KEY = getenv('SECRET_KEY')
 
 if SECRET_KEY == None:
