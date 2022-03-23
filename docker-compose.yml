@@ -1,0 +1,37 @@
+version: "2.3"
+
+services:
+
+  unprotected-server:
+    image: approov/python-django:3.10_3.1
+    build: ./
+    networks:
+      - default
+    command: bash -c "python manage.py runserver 0.0.0.0:8002"
+    ports:
+      - ${HOST_IP:-127.0.0.1}:${HTTP_PORT:-8002}:${HTTP_PORT:-8002}
+    volumes:
+      - ./src/unprotected-server:/home/python/workspace
+
+  approov-token-check:
+    image: approov/python-django:3.10_3.1
+    build: ./
+    networks:
+      - default
+    command: bash -c "python manage.py runserver 0.0.0.0:8002"
+    ports:
+      - ${HOST_IP:-127.0.0.1}:${HTTP_PORT:-8002}:${HTTP_PORT:-8002}
+    volumes:
+      - ./src/approov-protected-server/token-check:/home/python/workspace
+
+  approov-token-binding-check:
+    image: approov/python-django:3.10_3.1
+    build: ./
+    networks:
+      - default
+    command: bash -c "python manage.py runserver 0.0.0.0:8002"
+    ports:
+      - ${HOST_IP:-127.0.0.1}:${HTTP_PORT:-8002}:${HTTP_PORT:-8002}
+    volumes:
+      - ./src/approov-protected-server/token-binding-check:/home/python/workspace
+
