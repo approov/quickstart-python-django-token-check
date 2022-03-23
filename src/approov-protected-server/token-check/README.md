@@ -37,7 +37,7 @@ To run this example you will need to have Python installed. If you don't have th
 
 First, you need to create the `.env` file. From the `src/approov-protected-server/token-check/hello` folder execute:
 
-```
+```bash
 cp .env.example .env
 ```
 
@@ -45,7 +45,7 @@ Second, you need to set the dummy secret in the `src/approov-protected-server/to
 
 Next, you need to install the dependencies. From the `src/approov-protected-server/token-check` folder execute:
 
-```text
+```bash
 python -m venv venv
 source venv/bin/activate
 pip3 install -r requirements.txt
@@ -53,11 +53,31 @@ pip3 install -r requirements.txt
 
 Now, you can run this example from the `src/approov-protected-server/token-check` folder with:
 
-```text
+```bash
 python manage.py runserver 8002
 ```
 
 > **NOTE:** If running inside a docker container use `0.0.0.0:8002`, otherwise Django will not answer requests from outside the container, like the ones you want to do from your browser.
+
+Next, you can test that it works with:
+
+```bash
+curl -iX GET 'http://localhost:8002'
+```
+
+The response will be a `401` unauthorized request:
+
+```text
+HTTP/1.1 401 Unauthorized
+Date: Wed, 23 Mar 2022 18:36:35 GMT
+Server: WSGIServer/0.2 CPython/3.10.3
+Content-Type: application/json
+Connection: close
+
+{}
+```
+
+The reason you got a `401` is because no Approoov token isn't provided in the headers of the request.
 
 Finally, you can test that the Approov integration example works as expected with this [Postman collection](/README.md#testing-with-postman) or with some cURL requests [examples](/README.md#testing-with-curl).
 
