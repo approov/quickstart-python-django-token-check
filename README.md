@@ -47,7 +47,7 @@ Now, add to your `requirements.txt` file the [JWT dependency](https://github.com
 PyJWT==1.7.1 # update the version to the latest one
 ```
 
-Next, you need to install the dependencies:
+Next, you need to install the dependency:
 
 ```bash
 pip3 install -r requirements.txt
@@ -122,6 +122,14 @@ MIDDLEWARE = [
 > **NOTE:** The Approov middleware is included as the first one in the list because you don't want to waste your server resources in processing requests that don't have a valid Approov token. This approach will help your server to handle more load under a Denial of Service(DoS) attack.
 
 Not enough details in the bare bones quickstart? No worries, check the [detailed quickstarts](QUICKSTARTS.md) that contain a more comprehensive set of instructions, including how to test the Approov integration.
+
+
+## More Information
+
+* [Approov Overview](OVERVIEW.md)
+* [Detailed Quickstarts](QUICKSTARTS.md)
+* [Examples](EXAMPLES.md)
+* [Testing](TESTING.md)
 
 
 ## Issues
