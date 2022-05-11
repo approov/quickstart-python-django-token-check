@@ -7,93 +7,126 @@ This repo implements the Approov server-side request verification code in Python
 This is an Approov integration quickstart example for the Python Django framework. If you are looking for another Python integration you can check our list of [quickstarts](https://approov.io/docs/latest/approov-integration-examples/backend-api/), and if you don't find what you are looking for, then please let us know [here](https://approov.io/contact). Meanwhile, you can always use the framework agnostic [quickstart example](https://github.com/approov/quickstart-python-token-check) for Python, and you may find that's easily adaptable to your framework of choice.
 
 
-## TOC - Table of Contents
+## Approov Integration Quickstart
 
-* [Why?](#why)
-* [How it Works?](#how-it-works)
-* [Quickstarts](#approov-integration-quickstarts)
-* [Examples](#approov-integration-examples)
-* [Useful Links](#useful-links)
+The quickstart was tested with the following Operating Systems:
 
+* Ubuntu 20.04
+* MacOS Big Sur
+* Windows 10 WSL2 - Ubuntu 20.04
 
-## Why?
+First, setup the [Appoov CLI](https://approov.io/docs/latest/approov-installation/index.html#initializing-the-approov-cli).
 
-You can learn more about Approov, the motives for adopting it, and more detail on how it works by following this [link](https://approov.io/product). In brief, Approov:
+Now, register the API domain for which Approov will issues tokens:
 
-* Ensures that accesses to your API come from official versions of your apps; it blocks accesses from republished, modified, or tampered versions
-* Protects the sensitive data behind your API; it prevents direct API abuse from bots or scripts scraping data and other malicious activity
-* Secures the communication channel between your app and your API with [Approov Dynamic Certificate Pinning](https://approov.io/docs/latest/approov-usage-documentation/#approov-dynamic-pinning). This has all the benefits of traditional pinning but without the drawbacks
-* Removes the need for an API key in the mobile app
-* Provides DoS protection against targeted attacks that aim to exhaust the API server resources to prevent real users from reaching the service or to at least degrade the user experience.
-
-[TOC](#toc---table-of-contents)
-
-
-## How it works?
-
-This is a brief overview of how the Approov cloud service and the Python Django API server fit together from a backend perspective. For a complete overview of how the mobile app and backend fit together with the Approov cloud service and the Approov SDK we recommend to read the [Approov overview](https://approov.io/product) page on our website.
-
-### Approov Cloud Service
-
-The Approov cloud service attests that a device is running a legitimate and tamper-free version of your mobile app.
-
-* If the integrity check passes then a valid token is returned to the mobile app
-* If the integrity check fails then a legitimate looking token will be returned
-
-In either case, the app, unaware of the token's validity, adds it to every request it makes to the Approov protected API(s).
-
-### Python Django API Server
-
-The Python Django API server ensures that the token supplied in the `Approov-Token` header is present and valid. The validation is done by using a shared secret known only to the Approov cloud service and the Python Django API server.
-
-The request is handled such that:
-
-* If the Approov Token is valid, the request is allowed to be processed by the API endpoint
-* If the Approov Token is invalid, an HTTP 401 Unauthorized response is returned
-
-You can choose to log JWT verification failures, but we left it out on purpose so that you can have the choice of how you prefer to do it and decide the right amount of information you want to log.
-
->#### System Clock
->
->In order to correctly check for the expiration times of the Approov tokens is very important that the Python Django API server is synchronizing automatically the system clock over the network with an authoritative time source. In Linux this is usually done with a NTP server.
-
-[TOC](#toc---table-of-contents)
-
-
-## Approov Integration Quickstarts
-
-The quickstart code for the Approov Python Django API server is split into two implementations. The first gets you up and running with basic token checking. The second uses a more advanced Approov feature, _token binding_. Token binding may be used to link the Approov token with other properties of the request, such as user authentication (more details can be found [here](https://approov.io/docs/latest/approov-usage-documentation/#token-binding)).
-* [Approov token check quickstart](/docs/APPROOV_TOKEN_QUICKSTART.md)
-* [Approov token check with token binding quickstart](/docs/APPROOV_TOKEN_BINDING_QUICKSTART.md)
-
-Both the quickstarts are built from the unprotected example server defined in this Django [project](/src/unprotected-server/hello).
-
-You can use Git to see the code differences between the two quickstarts:
-
-```
-git diff --no-index src/approov-protected-server/token-check/hello/approov_middleware.py src/approov-protected-server/token-binding-check/hello/approov_middleware.py
+```bash
+approov api -add api.example.com
 ```
 
-[TOC](#toc---table-of-contents)
+Next, enable your Approov `admin` role with:
+
+```bash
+eval `approov role admin`
+```
+
+Now, get your Approov Secret with the [Appoov CLI](https://approov.io/docs/latest/approov-installation/index.html#initializing-the-approov-cli):
+
+```bash
+approov secret -get base64
+```
+
+Next, add the [Approov secret](https://approov.io/docs/latest/approov-usage-documentation/#account-secret-key-export) to your project `.env` file:
+
+```env
+APPROOV_BASE64_SECRET=approov_base64_secret_here
+```
+
+Now, add to your `requirements.txt` file the [JWT dependency](https://github.com/jpadilla/pyjwt/):
+
+```bash
+PyJWT==1.7.1 # update the version to the latest one
+```
+
+Next, you need to install the dependencies:
+
+```bash
+pip3 install -r requirements.txt
+```
+
+Now, add the [approov_middleware.py](/src/approov-protected-server/token-check/hello/approov_middleware.py) class to your project:
+
+```python
+from django.http import JsonResponse
+from os import getenv
+from dotenv import load_dotenv, find_dotenv
+import base64
+import jwt # https://github.com/jpadilla/pyjwt/
+
+# @link https://django.readthedocs.io/en/stable/topics/http/middleware.html
+class ApproovMiddleware:
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+        load_dotenv(find_dotenv(), override=True)
+
+        # Token secret value obtained with the Approov CLI tool:
+        #  - approov secret -get
+        approov_base64_secret = getenv('APPROOV_BASE64_SECRET')
+
+        if approov_base64_secret == None:
+            raise ValueError("Missing the value for environment variable: APPROOV_BASE64_SECRET")
+
+        self.APPROOV_SECRET = base64.b64decode(approov_base64_secret)
+
+    def __call__(self, request):
+        approov_token_claims = self.verifyApproovToken(request)
+
+        if approov_token_claims == None:
+            return JsonResponse({}, status = 401)
+
+        return self.get_response(request)
+
+    # @link https://approov.io/docs/latest/approov-usage-documentation/#backend-integration
+    def verifyApproovToken(self, request):
+        approov_token = request.headers.get("Approov-Token")
+
+        # If we didn't find a token, then reject the request.
+        if approov_token == None:
+            # You may want to add some logging here.
+            return None
+
+        try:
+            # Decode the Approov token explicitly with the HS256 algorithm to avoid
+            # the algorithm None attack.
+            approov_token_claims = jwt.decode(approov_token, self.APPROOV_SECRET, algorithms=['HS256'])
+            return approov_token_claims
+        except jwt.ExpiredSignatureError as e:
+            # You may want to add some logging here.
+            return None
+        except jwt.InvalidTokenError as e:
+            # You may want to add some logging here.
+            return None
+
+```
+
+Finally, to activate the [Approov Middleware](/src/approov-protected-server/token-check/hello/approov_middleware.py) you just need to include it in the middleware list of your [Django settings](/src/approov-protected-server/token-check/hello/settings.py) as the first one in the list:
+
+```python
+MIDDLEWARE = [
+    'YOUR_APP_NAME.approov_middleware.ApproovMiddleware',
+    'django.middleware.security.SecurityMiddleware',
+    # lines omitted
+]
+```
+
+> **NOTE:** The Approov middleware is included as the first one in the list because you don't want to waste your server resources in processing requests that don't have a valid Approov token. This approach will help your server to handle more load under a Denial of Service(DoS) attack.
+
+Not enough details in the bare bones quickstart? No worries, check the [detailed quickstarts](QUICKSTARTS.md) that contain a more comprehensive set of instructions, including how to test the Approov integration.
 
 
-## Approov Integration Examples
+## Issues
 
-The code examples for the Approov quickstarts are extracted from this simple [Approov integration examples](/src/approov-protected-server), that you can run from your computer to play around with the Approov integration and gain a better understanding of how simple and easy it is to integrate Approov in a Python Django API server.
-
-### Testing with Postman
-
-A ready-to-use Postman collection can be found [here](https://raw.githubusercontent.com/approov/postman-collections/master/quickstarts/hello-world/hello-world.postman_collection.json). It contains a comprehensive set of example requests to send to the Python Django API server for testing. The collection contains requests with valid and invalid Approov tokens, and with and without token binding.
-
-### Testing with Curl
-
-An alternative to the Postman collection is to use cURL to make the API requests. Check some examples [here](https://github.com/approov/postman-collections/blob/master/quickstarts/hello-world/hello-world.postman_curl_requests_examples.md).
-
-### The Dummy Secret
-
-The valid Approov tokens in the Postman collection and cURL requests examples were signed with a dummy secret that was generated with `openssl rand -base64 64 | tr -d '\n'; echo`, therefore not a production secret retrieved with `approov secret -get base64`, thus in order to use it you need to set the `APPROOV_BASE64_SECRET`, in the `.env` file for each [Approov integration example](/src/approov-protected-server), to the following value: `h+CX0tOzdAAR9l15bWAqvq7w9olk66daIH+Xk+IAHhVVHszjDzeGobzNnqyRze3lw/WVyWrc2gZfh3XXfBOmww==`.
-
-[TOC](#toc---table-of-contents)
+If you find any issue while following our instructions then just report it [here](https://github.com/approov/quickstart-python-django-token-check/issues), with the steps to reproduce it, and we will sort it out and/or guide you to the correct path.
 
 
 ## Useful Links
@@ -101,15 +134,12 @@ The valid Approov tokens in the Postman collection and cURL requests examples we
 If you wish to explore the Approov solution in more depth, then why not try one of the following links as a jumping off point:
 
 * [Approov Free Trial](https://approov.io/signup)(no credit card needed)
+* [Approov Get Started](https://approov.io/product/demo)
 * [Approov QuickStarts](https://approov.io/docs/latest/approov-integration-examples/)
-* [Approov Live Demo](https://approov.io/product/demo)
 * [Approov Docs](https://approov.io/docs)
-* [Approov Blog](https://blog.approov.io)
+* [Approov Blog](https://approov.io/blog/)
 * [Approov Resources](https://approov.io/resource/)
 * [Approov Customer Stories](https://approov.io/customer)
 * [Approov Support](https://approov.zendesk.com/hc/en-gb/requests/new)
 * [About Us](https://approov.io/company)
 * [Contact Us](https://approov.io/contact)
-
-
-[TOC](#toc---table-of-contents)
