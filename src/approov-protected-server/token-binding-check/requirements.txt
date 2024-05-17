@@ -1,6 +1,6 @@
-asgiref==3.2.10
-Django==3.1.1
-PyJWT==1.7.1
+asgiref==3.8.1
+Django==3.2.24
+PyJWT==2.8.0
 python-dotenv==0.10.3
 pytz==2020.1
-sqlparse==0.3.1
+sqlparse==0.5.0
