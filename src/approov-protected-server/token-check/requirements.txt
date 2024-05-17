@@ -1,5 +1,5 @@
 asgiref==3.8.1
-Django==3.2.24
+Django==3.2.25
 PyJWT==1.7.1
 python-dotenv==0.10.3
 pytz==2020.1
