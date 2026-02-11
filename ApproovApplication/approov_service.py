@@ -8,7 +8,7 @@ import logging
 import os
 import threading
 from dataclasses import dataclass
-from typing import Any, Mapping, Sequence, TypeGuard
+from typing import Any, Final, Mapping, Sequence, TypeGuard
 
 import jwt
 
@@ -16,14 +16,26 @@ APPROOV_HEADER = "Approov-Token"
 AUTH_HEADER = "Authorization"
 SESSION_ID_HEADER = "SessionId"
 PLACEHOLDER_SECRET = "approov_base64url_secret_here"
+JWT_ALGORITHM: Final[str] = "HS256"
+REQUIRED_TOKEN_CLAIMS: Final[tuple[str, ...]] = ("exp",)
+SECRET_NOT_SET_ERROR = "Required secret is not set"
+SECRET_INVALID_ERROR = "Required secret is invalid"
 
 _logger = logging.getLogger("approov")
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class VerificationResult:
     error: str | None
     claims: dict[str, Any] | None
+
+    @classmethod
+    def success(cls, claims: dict[str, Any]) -> VerificationResult:
+        return cls(error=None, claims=claims)
+
+    @classmethod
+    def failure(cls, error: str) -> VerificationResult:
+        return cls(error=error, claims=None)
 
 
 def has_text(value: str | None) -> TypeGuard[str]:
@@ -39,26 +51,27 @@ def _normalize_base64url(value: str) -> str:
     return value.strip().replace("+", "-").replace("/", "_").rstrip("=")
 
 
+def _raise_config_error(message: str) -> None:
+    _logger.error(message)
+    raise RuntimeError(message)
+
+
 def load_approov_secret_from_env() -> bytes:
     raw_secret = os.getenv("APPROOV_BASE64URL_SECRET")
     if not has_text(raw_secret):
-        _logger.error("Required secret is not set")
-        raise RuntimeError("Required secret is not set")
+        _raise_config_error(SECRET_NOT_SET_ERROR)
 
     normalized_secret = raw_secret.strip()
     if normalized_secret == PLACEHOLDER_SECRET:
-        _logger.error("Required secret is not set")
-        raise RuntimeError("Required secret is not set")
+        _raise_config_error(SECRET_NOT_SET_ERROR)
 
     try:
         decoded = _decode_base64url(normalized_secret)
     except (binascii.Error, ValueError):
-        _logger.error("Required secret is invalid")
-        raise RuntimeError("Required secret is invalid")
+        _raise_config_error(SECRET_INVALID_ERROR)
 
     if len(decoded) < 32:
-        _logger.error("Required secret is invalid")
-        raise RuntimeError("Required secret is invalid")
+        _raise_config_error(SECRET_INVALID_ERROR)
 
     return decoded
 
@@ -95,7 +108,7 @@ def binding_matches(pay_claim: str, computed_hash: str) -> bool:
 
 
 def summarize_error(error: str) -> str:
-    if "missing Approov-Token header" in error:
+    if error.startswith("[approov] missing ") and error.endswith(" header"):
         return "missing_approov_token"
     if "bound header" in error and "does not exist" in error:
         return "missing_binding_header"
@@ -170,6 +183,53 @@ class ApproovService:
             self._token_binding_enabled = False
         return self.state()
 
+    def _decode_approov_claims(self, token: str) -> VerificationResult:
+        try:
+            claims = jwt.decode(
+                token,
+                self._secret,
+                algorithms=[JWT_ALGORITHM],
+                options={
+                    "require": list(REQUIRED_TOKEN_CLAIMS),
+                    "verify_signature": True,
+                    "verify_exp": True,
+                },
+            )
+        except jwt.ExpiredSignatureError:
+            return VerificationResult.failure("[approov] token expired")
+        except jwt.InvalidSignatureError:
+            return VerificationResult.failure("[approov] token signature invalid")
+        except jwt.InvalidTokenError as error:
+            return VerificationResult.failure(f"[approov] token invalid: {error}")
+
+        return VerificationResult.success(claims)
+
+    def _verify_token_binding(
+        self,
+        headers: Mapping[str, str],
+        approov_claims: Mapping[str, Any],
+        requested_headers: Sequence[str],
+    ) -> str | None:
+        pay_claim = approov_claims.get("pay")
+        if pay_claim is None or (isinstance(pay_claim, str) and not has_text(pay_claim)):
+            return "[approov] token does not have a 'pay' claim"
+
+        if not isinstance(pay_claim, str):
+            return "[approov] token does not have a valid 'pay' claim"
+
+        binding_error, binding_value = build_token_binding_string(headers, requested_headers)
+        if binding_error is not None or binding_value is None:
+            return binding_error
+
+        computed_hash = sha256_b64url_from_str(binding_value)
+        if not binding_matches(pay_claim, computed_hash):
+            return (
+                "[approov] token binding: hash mismatch "
+                f"(expected '{computed_hash}', got '{pay_claim}')"
+            )
+
+        return None
+
     def verify_approov_token(
         self,
         headers: Mapping[str, str],
@@ -178,72 +238,30 @@ class ApproovService:
         bound_headers: Sequence[str] | None = None,
     ) -> VerificationResult:
         if not token_check or not self.is_approov_enabled():
-            return VerificationResult(error=None, claims={})
+            return VerificationResult.success({})
 
         approov_token = headers.get(self._token_header)
         if not has_text(approov_token):
-            return VerificationResult(
-                error=f"[approov] missing {self._token_header} header",
-                claims=None,
+            return VerificationResult.failure(
+                error=f"[approov] missing {self._token_header} header"
             )
 
-        try:
-            approov_claims = jwt.decode(
-                approov_token.strip(),
-                self._secret,
-                algorithms=["HS256"],
-                options={
-                    "require": ["exp"],
-                    "verify_signature": True,
-                    "verify_exp": True,
-                },
-            )
-        except jwt.ExpiredSignatureError:
-            return VerificationResult(error="[approov] token expired", claims=None)
-        except jwt.InvalidSignatureError:
-            return VerificationResult(
-                error="[approov] token signature invalid",
-                claims=None,
-            )
-        except jwt.InvalidTokenError as error:
-            return VerificationResult(
-                error=f"[approov] token invalid: {error}",
-                claims=None,
-            )
+        decode_result = self._decode_approov_claims(approov_token.strip())
+        if decode_result.error is not None:
+            return decode_result
 
-        requested_headers = list(bound_headers or [])
+        approov_claims = decode_result.claims or {}
+        requested_headers = tuple(bound_headers or ())
         if requested_headers:
-            pay_claim = approov_claims.get("pay")
-            if pay_claim is None or (isinstance(pay_claim, str) and not has_text(pay_claim)):
-                return VerificationResult(
-                    error="[approov] token does not have a 'pay' claim",
-                    claims=None,
-                )
-
-            if not isinstance(pay_claim, str):
-                return VerificationResult(
-                    error="[approov] token does not have a valid 'pay' claim",
-                    claims=None,
-                )
-
-            binding_error, binding_value = build_token_binding_string(
+            binding_error = self._verify_token_binding(
                 headers,
+                approov_claims,
                 requested_headers,
             )
-            if binding_error is not None or binding_value is None:
-                return VerificationResult(error=binding_error, claims=None)
+            if binding_error is not None:
+                return VerificationResult.failure(binding_error)
 
-            computed_hash = sha256_b64url_from_str(binding_value)
-            if not binding_matches(pay_claim, computed_hash):
-                return VerificationResult(
-                    error=(
-                        "[approov] token binding: hash mismatch "
-                        f"(expected '{computed_hash}', got '{pay_claim}')"
-                    ),
-                    claims=None,
-                )
-
-        return VerificationResult(error=None, claims=approov_claims)
+        return VerificationResult.success(approov_claims)
 
 
 _service_lock = threading.Lock()

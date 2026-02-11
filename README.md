@@ -9,19 +9,19 @@ This project provides a server-side example of Approov token verification for a 
 
 In this Django example, Approov token verification is implemented in `ApproovApplication/approov_service.py` and enforced by `ApproovApplication/approov_middleware.py`. Responsibilities are split as follows:
 
-1. **Approov JWT validation (signature + expiration)** is in [verify_approov_token()](https://github.com/approov/quickstart-python-django-token-check/tree/refactor/python-django-quickstart/ApproovApplication/approov_service.py#L173-L246), with decode/expiration checks in [verify_approov_token()](https://github.com/approov/quickstart-python-django-token-check/tree/refactor/python-django-quickstart/ApproovApplication/approov_service.py#L190-L212).  
+1. **Approov JWT validation (signature + expiration)** is in [verify_approov_token()](https://github.com/approov/quickstart-python-django-token-check/tree/refactor/python-django-quickstart/ApproovApplication/approov_service.py#L233-L265), with decode/expiration checks in [_decode_approov_claims()](https://github.com/approov/quickstart-python-django-token-check/tree/refactor/python-django-quickstart/ApproovApplication/approov_service.py##L186-L205).  
 It uses `jwt.decode(..., algorithms=["HS256"])` and requires the `exp` claim.
 
-2. **Token binding (`pay` + hash)** is handled in [verify_approov_token()](https://github.com/approov/quickstart-python-django-token-check/tree/refactor/python-django-quickstart/ApproovApplication/approov_service.py#L214-L244), hash helper [sha256_b64url_from_str()](ApproovApplication/approov_service.py#L84-L87), and comparator [binding_matches()](https://github.com/approov/quickstart-python-django-token-check/tree/refactor/python-django-quickstart/ApproovApplication/approov_service.py#L90-L94).  
+2. **Token binding (`pay` + hash)** is handled by [verify_approov_token()](https://github.com/approov/quickstart-python-django-token-check/tree/refactor/python-django-quickstart/ApproovApplication/approov_service.py#L233-L265) via [_verify_token_binding()](ApproovApplication/approov_service.py#L207-L231), hash helper [sha256_b64url_from_str()](https://github.com/approov/quickstart-python-django-token-check/tree/refactor/python-django-quickstart/ApproovApplication/approov_service.py#L97-L100), and comparator [binding_matches()](ApproovApplication/approov_service.py#L103-L107).  
 It computes `base64url(sha256(binding_value))` and compares it with `pay`.
 
-3. **Middleware enforcement** is done by [ApproovMiddleware.__call__()](https://github.com/approov/quickstart-python-django-token-check/tree/refactor/python-django-quickstart/ApproovApplication/approov_middleware.py#L40-L88) enforces checks only on `PROTECTED_ROUTES` and only when `approovEnabled=True`.  
+3. **Middleware enforcement** is done in [ApproovMiddleware.__call__()](https://github.com/approov/quickstart-python-django-token-check/tree/refactor/python-django-quickstart/ApproovApplication/approov_middleware.py#L40-L88), which enforces checks only on `PROTECTED_ROUTES` and only when `approovEnabled=True`.  
 Missing or invalid token/binding returns `401 Unauthorized`.
 
-4. **Binding-value construction (what gets hashed)** is in [build_token_binding_string()](https://github.com/approov/quickstart-python-django-token-check/tree/refactor/python-django-quickstart/ApproovApplication/approov_service.py#L66-L82).  
+4. **Binding-value construction (what gets hashed)** is in [build_token_binding_string()](https://github.com/approov/quickstart-python-django-token-check/tree/refactor/python-django-quickstart/ApproovApplication/approov_service.py#L79-L95).  
 It reads an ordered `bound_headers` list and concatenates header values in that exact order.
 
-5. **Protected route requirements** are defined in [PROTECTED_ROUTES](https://github.com/approov/quickstart-python-django-token-check/tree/refactor/python-django-quickstart/ApproovApplication/approov_middleware.py#L25-L31), and required-header computation is in [required_headers_for_request()](https://github.com/approov/quickstart-python-django-token-check/tree/refactor/python-django-quickstart/ApproovApplication/approov_service.py#L107-L115).
+5. **Protected route requirements** are defined in [PROTECTED_ROUTES](https://github.com/approov/quickstart-python-django-token-check/tree/refactor/python-django-quickstart/ApproovApplication/approov_middleware.py#L25-L31), and required-header computation is in [required_headers_for_request()](https://github.com/approov/quickstart-python-django-token-check/tree/refactor/python-django-quickstart/ApproovApplication/approov_service.py#L120-L129).
 
 ## Approov Token Verification Flow
 
