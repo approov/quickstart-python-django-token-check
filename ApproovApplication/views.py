@@ -6,7 +6,12 @@ from typing import Any
 from django.http import HttpRequest, JsonResponse
 from django.views.decorators.http import require_GET, require_POST
 
-from .approov_service import AUTH_HEADER, SESSION_ID_HEADER, get_approov_service, has_text
+from .approov_service import (
+    AUTH_HEADER,
+    SESSION_ID_HEADER,
+    get_approov_service,
+    has_text,
+)
 
 approov_service = get_approov_service()
 
@@ -67,7 +72,9 @@ def disable_token_binding_endpoint(request: HttpRequest) -> JsonResponse:
 @require_GET
 def unprotected(request: HttpRequest) -> JsonResponse:
     return json_response(
-        info_payload("Unprotected endpoint '/unprotected'; no Approov checks performed."),
+        info_payload(
+            "Unprotected endpoint '/unprotected'; no Approov checks performed."
+        ),
         status=200,
     )
 

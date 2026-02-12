@@ -211,13 +211,17 @@ class ApproovService:
         requested_headers: Sequence[str],
     ) -> str | None:
         pay_claim = approov_claims.get("pay")
-        if pay_claim is None or (isinstance(pay_claim, str) and not has_text(pay_claim)):
+        if pay_claim is None or (
+            isinstance(pay_claim, str) and not has_text(pay_claim)
+        ):
             return "[approov] token does not have a 'pay' claim"
 
         if not isinstance(pay_claim, str):
             return "[approov] token does not have a valid 'pay' claim"
 
-        binding_error, binding_value = build_token_binding_string(headers, requested_headers)
+        binding_error, binding_value = build_token_binding_string(
+            headers, requested_headers
+        )
         if binding_error is not None or binding_value is None:
             return binding_error
 
@@ -274,6 +278,8 @@ def get_approov_service() -> ApproovService:
     if _service_instance is None:
         with _service_lock:
             if _service_instance is None:
-                _service_instance = ApproovService(secret=load_approov_secret_from_env())
+                _service_instance = ApproovService(
+                    secret=load_approov_secret_from_env()
+                )
 
     return _service_instance

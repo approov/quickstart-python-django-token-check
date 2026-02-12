@@ -64,7 +64,9 @@ class ApproovMiddleware:
                     bound_headers=active_bound_headers,
                 )
                 if verification_result.error is not None:
-                    summary = f"approov_failed:{summarize_error(verification_result.error)}"
+                    summary = (
+                        f"approov_failed:{summarize_error(verification_result.error)}"
+                    )
                     error = verification_result.error
                     response = JsonResponse({"message": "Unauthorized"}, status=401)
                     return self._finalize_response(
@@ -85,7 +87,9 @@ class ApproovMiddleware:
         if response.status_code == 401 and summary == "approov_ok":
             summary = "approov_failed:downstream_unauthorized"
 
-        return self._finalize_response(request, response, summary, required_headers, error)
+        return self._finalize_response(
+            request, response, summary, required_headers, error
+        )
 
     def _finalize_response(
         self,

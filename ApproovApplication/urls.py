@@ -20,5 +20,7 @@ urlpatterns = [
     path("unprotected", views.unprotected, name="unprotected"),
     path("token-check", views.token_check, name="token_check"),
     path("token-binding", views.token_binding, name="token_binding"),
-    path("token-double-binding", views.token_double_binding, name="token_double_binding"),
+    path(
+        "token-double-binding", views.token_double_binding, name="token_double_binding"
+    ),
 ]
