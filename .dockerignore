@@ -36,3 +36,4 @@ venv/
 
 # Not required in runtime image
 test.sh
+.config/

@@ -58,8 +58,8 @@ class ApproovMiddleware:
                 active_bound_headers = (
                     route.bound_headers if state["tokenBindingEnabled"] else ()
                 )
-                verification_result = self.service.verify_approov_token(
-                    request.headers,
+                verification_result = self.service.verify_approov_request(
+                    request,
                     token_check=True,
                     bound_headers=active_bound_headers,
                 )

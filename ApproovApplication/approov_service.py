@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from typing import Any, Final, Mapping, Sequence, TypeGuard
 
 import jwt
+from django.http import HttpRequest
 
 APPROOV_HEADER = "Approov-Token"
 AUTH_HEADER = "Authorization"
@@ -266,6 +267,19 @@ class ApproovService:
                 return VerificationResult.failure(binding_error)
 
         return VerificationResult.success(approov_claims)
+
+    def verify_approov_request(
+        self,
+        request: HttpRequest,
+        *,
+        token_check: bool = True,
+        bound_headers: Sequence[str] | None = None,
+    ) -> VerificationResult:
+        return self.verify_approov_token(
+            request.headers,
+            token_check=token_check,
+            bound_headers=bound_headers,
+        )
 
 
 _service_lock = threading.Lock()
